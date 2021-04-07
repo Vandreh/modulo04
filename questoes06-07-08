@@ -1,0 +1,378 @@
+sql: databale = utd_apis
+CREATE TABLE `cursos` (
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
+  `nome` varchar(255) NOT NULL,
+  `estado` varchar(30) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
+INSERT INTO `cursos` (`id`, `nome`, `estado`) VALUES
+(1, 'PHP', 'ativo'),
+(2, 'JavaScript', 'ativo'),
+(3, 'Python', 'inativo');
+
+arquivo=aula07.php
+<?php 
+	
+	ini_set("display_errors", 1);
+
+	if(isset($_GET['curso'])){
+	var_dump(file_get_contents("http://localhost/curso_php/aula07/aula07.php?curso=".$_GET['curso']));
+
+	$resultado = file_get_contents("http://localhost/curso_php/aula07/aula07.php?curso=".$_GET['curso']);
+
+	$resultado = json_decode($resultado, true);
+
+	print_r($resultado);
+	echo "<hr>";
+	echo "<br>";
+	echo " Curso : ".$resultado[0]['nome'];
+	echo "<br>";
+	echo " Estado : ".$resultado[0]['estado'];
+}elseif(isset($_GET['todos'])){
+	print_r(file_get_contents("http://localhost/curso_php/aula07/aula07.php?todos"));
+
+	$resultado = file_get_contents("http://localhost/curso_php/aula07/aula07.php?todos");
+
+	$resultado = json_decode($resultado);
+
+	print_r($resultado);
+	echo "<hr>";
+	echo "<table class='table'>";
+		echo "<thead>";	
+			echo "<th>Curso</th>";
+			echo "<th>Estado</th>";
+			
+		echo "</thead>";	
+		echo "<tbody>";	
+			
+	foreach ($resultado as $key => $value) {
+			echo "<tr>";
+				echo "<td>";			
+					echo $value->nome;		
+				echo "</td>";
+				echo "<td>";			
+					echo $value->estado;		
+				echo "</td>";
+			echo "</tr>";				
+				
+	}
+
+
+		echo "</tbody>";	
+	echo "</table>";
+echo "<hr>";
+	foreach ($resultado as $key => $value) {
+
+		echo "<hr>";
+		echo "<br>";
+		echo "Curso: ".$value->nome;
+		echo "<br>";
+		echo " Estado : ".$value->estado;
+	}
+
+	echo "</table>";
+	}elseif(isset($_GET['ativos'])){
+	print_r(file_get_contents("http://localhost/curso_php/aula07/aula07.php?ativo"));
+
+	$resultado = file_get_contents("http://localhost/curso_php/aula07/aula07.php?ativo");
+
+	$resultado = json_decode($resultado);
+
+	print_r($resultado);
+
+	foreach ($resultado as $key => $value) {
+
+		echo "<hr>";
+		echo "<br>";
+		echo "Curso: ".$value->nome;
+		echo "<br>";
+		echo " Estado : ".$value->estado;
+	}
+}
+?>
+
+pasta 
+arquivo=aula07/aula07.php
+<?php 
+	include_once 'Connect.class.php';
+	include_once 'Manager.class.php';
+
+	$manager = new Manager();
+
+	if (isset($_GET['curso'])) {
+		$filtro['nome'] = $_GET['curso'];
+		$retorno = $manager->select_common("cursos", null, $filtro, null);
+		echo json_encode($retorno);
+	}elseif (isset($_GET['todos'])) {
+		$retorno = $manager->select_common("cursos", null, null, " ORDER BY nome");
+		echo json_encode($retorno);
+	}elseif (isset($_GET['ativo'])) {
+		$filtro['estado'] = "ativo";
+		$retorno = $manager->select_common("cursos", null, $filtro, null);
+		echo json_encode($retorno);
+	}else{
+		$json['erro'] = "Erro";
+		$json['mensagem'] = "Nenhum endpoint foi informado";
+		echo json_encode($json);
+	}
+ ?>
+ 
+ arquivo aula07/Connect.class.php
+ <?php 
+
+	class connect{
+		public static $instance;
+		public function __construct(){
+		}
+		public static function get_instance(){
+			if(!isset(self::$instance)){
+				self::$instance = new PDO('mysql:host=localhost;dbname=utd_apis;', 'root', '', array(
+					PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8"));
+				self::$instance->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+				self::$instance->setAttribute(PDO::ATTR_ORACLE_NULLS, PDO::NULL_EMPTY_STRING);
+			}
+			return self::$instance;
+		}
+	}
+	
+ ?>
+ 
+ arquivo aula07/Manager.class.php
+ <?php 
+
+	class Manager extends Connect{
+
+		public function insert_common($table, $data, $query_extra){
+			
+			$pdo = parent::get_instance();
+			$fields = implode(", ", array_keys($data));
+			$values = ":".implode(", :", array_keys($data));
+			$query = "INSERT INTO $table ($fields) VALUES ($values)";
+			
+			if($query_extra != ""){
+				$query .= $query_extra;
+			}
+			
+			$statement = $pdo->prepare($query);
+			
+			if (!$statement) {
+				echo "\PDO::errorInfo():\n";
+				print_r($dbh->errorInfo());
+			}
+			
+			foreach ($data as $key => $value) {
+				$data[$key] = filter_var($value);
+			}
+			
+			foreach ($data as $key => $value) {
+				$statement->bindValue(":$key", $value, PDO::PARAM_STR);
+			}
+			
+			if($statement->execute()){
+				return $pdo->lastInsertId();
+			}else{
+				return false;
+			}
+		}
+		
+		public function select_common($table, $fields, $filters, $query_extra){
+			
+			$pdo = parent::get_instance();
+			$query = "SELECT ";
+			if ($fields != null) {
+				$query .= implode(", ", $fields);
+			}else{
+				$query .= "*";
+			}
+			$query .= " FROM $table";
+			
+			if($filters != null){
+				$query .= " WHERE ";
+				foreach ($filters as $key => $value) {
+					$query .= "$key=:$key AND ";
+				}
+
+				$query = substr($query, 0, -4);
+			}
+
+			if($query_extra != null){
+				$query .= $query_extra;
+			}
+			$statement = $pdo->prepare($query);
+			
+			if (!$statement) {
+				echo "\PDO::errorInfo():\n";
+				print_r($dbh->errorInfo());
+			}
+
+			if ($filters != null) {
+
+				foreach ($filters as $key => $value) {
+					$filters[$key] = filter_var($value);
+				}
+
+				foreach ($filters as $key => $value) {
+					$statement->bindValue(":$key", $value, PDO::PARAM_STR);
+				}
+			}
+
+			$statement->execute();
+			$data;
+			if ($statement->rowCount()) {
+				while($result = $statement->fetch(PDO::FETCH_ASSOC)){
+					$data[] = $result;
+				}
+			}else{
+				return false;
+			}
+			return $data;
+		}
+
+		public function select_special($table, $relationship, $filters, $query_extra){
+			
+			$pdo = parent::get_instance();
+			$query = "SELECT ";
+
+			foreach ($tables as $table => $fields) {
+				if(!empty($fields)){
+					foreach ($fields as $each_field) {
+						$query .= "$table.$each_field, ";
+					}
+				}else{
+					$query .= "$table.*, ";
+				}
+			}
+
+			$query = substr($query, 0, -2);
+			$tables_names = array_keys($tables);
+			$query .= " FROM ".implode(" INNER JOIN ", $tables_names);
+
+			$query .= " ON ";
+			foreach ($relationship as $foreing => $primary) {
+				$query .= "$foreing=$primary AND";
+			}
+
+			$query = substr($query, 0, -4);
+
+			if (isset($filters)) {
+				$query .= " WHERE ";
+				foreach ($filters as $field => $value) {
+					$query .= "$field=? AND ";
+				}
+				$query = substr($query, 0, -4);
+			}
+
+			if ($query_extra != "") {
+				$query .= $query_extra;
+			}
+
+			$statement = $pdo->prepare($query);
+
+			if (!$statement) {
+				echo "\PDO::errorInfo():\n";
+				print_r($dbh->errorInfo());
+			}
+
+			if (isset($filters)) {
+				foreach ($filters as $key => $value) {					
+					$filters[$key] = filter_var($value);
+				}
+
+				$i = 1;
+				foreach ($filters as $key => $value) {
+					
+					$statement->bindValue($i, $value, PDO::PARAM_STR);
+					$i++;
+				}
+			}
+
+			$statement->exexult();
+			$data;
+			if ($statement->rowCount()) {
+				while ($result = $statement->fetch(PDO::FETCH_ASSOC)) {
+					$data[] = $result;
+				}
+			}else{
+				return false;
+			}
+			return $data;
+		}
+
+		public function update_common($table, $data, $filters, $query_extra){
+
+      $pdo = parent::get_instance();
+			$new_values = "";
+			foreach ($data as $key => $value) {
+				$new_values .= "$key=:$key, ";
+			}
+
+			$new_values = substr($new_values, 0, -2);
+			$filters_up = "";
+			foreach ($filters as $key => $value) {
+				$filters_up .= "$key=:$key AND ";
+			}
+
+			$filters_up = substr($filters_up, 0, -4);
+			$query = "UPDATE $table SET $new_values WHERE $filters_up;";
+
+			if ($query_extra != "") {
+				$query .= $query_extra;
+			}
+      
+			$statement = $pdo->prepare($query);
+
+			if (!$statement) {
+				echo "\PDO::errorInfo():\n";
+				print_r($dbh->errorInfo());
+			}
+
+			foreach ($data as $key => $value) {
+				$data[$key] = filter_var($value);
+			}
+
+			foreach ($data as $key => $value) {				
+				$statement->bindValue(":$key", $value, PDO::PARAM_STR);
+			}
+
+			foreach ($filters as $key => $value) {				
+				$statement->bindValue(":$key", $value, PDO::PARAM_STR);
+			}
+
+			if ($statement->execute()) {
+				return true;
+			}else{
+				return false;
+			}
+		}
+
+		public function delete_common($table, $filters, $query_extra){
+			$pdo = parent::get_instance();
+			$filters_delete="";
+			foreach ($filters as $key => $value) {
+				$filters_delete .= "$key=:$key AND ";
+			}
+			$filters_delete = substr($filters_delete, 0, -4);
+			$query = "DELETE FROM $table WHERE $filters_delete;";
+			if ($query_extra != "") {
+				$query = $query_extra;
+			}
+			$statement = $pdo->prepare($query);
+
+			if (!$statement) {
+				echo "\PDO::errorInfo():\n";
+				print_r($dbh->errorInfo());
+			}
+			foreach ($filters as $key => $value) {
+
+				$statement->bindValue(":$key", $value, PDO::PARAM_STR);
+			}
+			if ($statement->execute()) {
+
+				return true;
+			}else{
+
+				return false;
+			}
+		}
+	}
+ ?>
